@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проверка репутации</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #E22227 0%, #6C0102 50%, #222B31 100%);
+            background-attachment: fixed;
+            color: #ffffff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .stars { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+        .star { position: absolute; width: 2px; height: 2px; background: white; border-radius: 50%; animation: twinkle 3s infinite; }
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        
+        .app-wrapper { position: relative; z-index: 1; max-width: 600px; margin: 0 auto; }
+        .app-header { text-align: center; margin-bottom: 30px; animation: fadeInDown 0.6s; }
+        .app-logo { font-size: 64px; margin-bottom: 10px; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3)); }
+        .app-title { font-size: 28px; font-weight: 700; margin-bottom: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .app-subtitle { font-size: 14px; opacity: 0.9; }
+        @keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .container { display: none; animation: fadeIn 0.4s; }
+        .container.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .card { background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); backdrop-filter: blur(10px); color: #333; }
+        h1 { font-size: 24px; margin-bottom: 20px; text-align: center; color: #E22227; }
+        
+        .input-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; color: #555; }
+        
+        input, textarea {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            background: #f8f9fa;
+            color: #333;
+            transition: all 0.3s;
+        }
+        
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #E22227;
+            background: white;
+            box-shadow: 0 0 0 4px rgba(226, 34, 39, 0.1);
+        }
+        
+        textarea { min-height: 100px; resize: vertical; }
+        
+        button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:active { transform: translateY(2px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+        
+        .btn-primary { background: linear-gradient(135deg, #E22227 0%, #C7080C 100%); color: white; }
+        .btn-primary:hover { box-shadow: 0 6px 20px rgba(226, 34, 39, 0.4); }
+        .btn-secondary { background: white; border: 2px solid #E22227; color: #E22227; }
+        .btn-secondary:hover { background: #f8f9fa; }
+        .btn-danger { background: linear-gradient(135deg, #C7080C 0%, #440101 100%); color: white; }
+        .btn-danger:hover { box-shadow: 0 6px 20px rgba(199, 8, 12, 0.4); }
+        
+        .profile-card {
+            background: linear-gradient(135deg, #E22227 0%, #6C0102 100%);
+            border-radius: 20px;
+            padding: 25px;
+            margin-top: 20px;
+            color: white;
+            box-shadow: 0 8px 32px rgba(226, 34, 39, 0.3);
+            animation: slideUp 0.5s;
+        }
+        
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .profile-header { display: flex; align-items: center; gap: 15px; margin-bottom: 20px; }
+        .profile-image { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); }
+        .profile-info { flex: 1; }
+        .profile-username { font-size: 22px; font-weight: 700; margin-bottom: 5px; }
+        .profile-badge { display: inline-block; background: rgba(255, 255, 255, 0.2); padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .profile-description { font-size: 14px; line-height: 1.6; opacity: 0.95; }
+        .profile-verified { text-align: center; margin-top: 15px; font-size: 18px; font-weight: 700; }
+        
+        .result { margin-top: 20px; padding: 20px; border-radius: 16px; display: none; animation: slideUp 0.5s; }
+        .result.show { display: block; }
+        .result.scam { background: linear-gradient(135deg, #C7080C 0%, #440101 100%); color: white; box-shadow: 0 8px 32px rgba(199, 8, 12, 0.3); }
+        .result.trusted { background: linear-gradient(135deg, #51cf66 0%, #37b24d 100%); color: white; box-shadow: 0 8px 32px rgba(81, 207, 102, 0.3); }
+        .result.unknown { background: linear-gradient(135deg, #222B31 0%, #495057 100%); color: white; box-shadow: 0 8px 32px rgba(34, 43, 49, 0.3); }
+        .result h2 { font-size: 24px; margin-bottom: 10px; }
+        .result p { margin: 8px 0; font-size: 15px; line-height: 1.5; }
+        
+        .loading { text-align: center; padding: 30px; display: none; }
+        .loading.show { display: block; }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.3); border-top: 4px solid white; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .error { background: linear-gradient(135deg, #C7080C 0%, #440101 100%); color: white; padding: 15px; border-radius: 12px; margin-top: 10px; display: none; box-shadow: 0 4px 15px rgba(199, 8, 12, 0.3); }
+        .error.show { display: block; }
+        .success { background: linear-gradient(135deg, #51cf66 0%, #37b24d 100%); color: white; padding: 15px; border-radius: 12px; margin-top: 10px; display: none; box-shadow: 0 4px 15px rgba(81, 207, 102, 0.3); }
+        .success.show { display: block; }
+        
+        .file-upload { border: 2px dashed #E22227; border-radius: 12px; padding: 25px; text-align: center; cursor: pointer; margin-bottom: 15px; background: #f8f9fa; transition: all 0.3s; }
+        .file-upload:hover { background: #ffe0e0; border-color: #C7080C; }
+        .file-upload input { display: none; }
+        .file-preview { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 10px; }
+        .file-preview img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 2px solid #e0e0e0; }
+        .file-item { position: relative; }
+        .file-remove { position: absolute; top: -8px; right: -8px; background: #C7080C; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 14px; cursor: pointer; padding: 0; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
+    </style>
+</head>
+<body>
+    <div class="stars" id="stars"></div>
+    
+    <div class="app-wrapper">
+        <div class="app-header">
+            <div class="app-logo">🛡️</div>
+            <h1 class="app-title">Проверка репутации</h1>
+            <p class="app-subtitle">Безопасные сделки в Telegram</p>
+        </div>
+
+        <div id="checkScreen" class="container active">
+            <div class="card">
+                <div class="input-group">
+                    <label for="usernameCheck">💼 Telegram Username</label>
+                    <input type="text" id="usernameCheck" placeholder="username (без @)" autocomplete="off">
+                </div>
+                <button class="btn-primary" onclick="checkReputation()">🔍 Проверить репутацию</button>
+                <button class="btn-secondary" onclick="showApplyScreen()">✅ Подать заявку на верификацию</button>
+                <button class="btn-danger" onclick="showReportScreen()">⚠️ Пожаловаться на мошенника</button>
+                <div class="loading" id="checkLoading"><div class="spinner"></div><p style="color: #E22227;">Проверяем...</p></div>
+                <div class="error" id="checkError"></div>
+            </div>
+            <div class="result" id="result"><h2 id="resultTitle"></h2><p id="resultUsername"></p><p id="resultDetails"></p></div>
+            <div id="profileCard" style="display: none;"></div>
+        </div>
+
+        <div id="applyScreen" class="container">
+            <div class="card">
+                <h1>✅ Заявка на верификацию</h1>
+                <button class="btn-secondary" onclick="showCheckScreen()">← Назад</button>
+                <div class="input-group"><label for="usernameApply">👤 Ваш Telegram Username</label><input type="text" id="usernameApply" placeholder="username (без @)" autocomplete="off"></div>
+                <div class="input-group"><label for="description">📝 Описание (Почему вас стоит верифицировать?)</label><textarea id="description" placeholder="Расскажите о себе и почему вам можно доверять..."></textarea></div>
+                <div class="input-group"><label for="proof">🔗 Ссылка на доказательства (необязательно)</label><input type="text" id="proof" placeholder="https://... (сайт, соцсети и т.д.)"></div>
+                <button class="btn-primary" onclick="submitApplication()">Отправить заявку</button>
+                <div class="loading" id="applyLoading"><div class="spinner"></div><p style="color: #E22227;">Отправляем...</p></div>
+                <div class="error" id="applyError"></div>
+                <div class="success" id="applySuccess"></div>
+            </div>
+        </div>
+
+        <div id="reportScreen" class="container">
+            <div class="card">
+                <h1>🚨 Жалоба на мошенника</h1>
+                <button class="btn-secondary" onclick="showCheckScreen()">← Назад</button>
+                <div class="input-group"><label for="reporterUsername">👤 Ваш Username (необязательно)</label><input type="text" id="reporterUsername" placeholder="username (без @)" autocomplete="off"></div>
+                <div class="input-group"><label for="scammerUsername">⚠️ Username мошенника *</label><input type="text" id="scammerUsername" placeholder="username мошенника (без @)" autocomplete="off"></div>
+                <div class="input-group"><label for="reportDescription">📄 Подробное описание *</label><textarea id="reportDescription" placeholder="Опишите подробно, как вас обманули, на какую сумму, какие были обещания и т.д. (минимум 20 символов)"></textarea></div>
+                <div class="input-group"><label for="reportProof">🔗 Ссылки на доказательства</label><textarea id="reportProof" placeholder="Вставьте ссылки на скриншоты, переписки, посты и т.д. (по одной на строку)" rows="3"></textarea></div>
+                <div class="file-upload" onclick="document.getElementById('screenshots').click()"><input type="file" id="screenshots" accept="image/*" multiple onchange="handleFiles(this.files)"><p style="color: #E22227; font-weight: 600;">📸 Нажмите для загрузки скриншотов</p><small style="color: #666;">Можно выбрать несколько файлов (макс. 5 шт.)</small></div>
+                <div class="file-preview" id="filePreview"></div>
+                <button class="btn-danger" onclick="submitReport()">Отправить жалобу</button>
+                <div class="loading" id="reportLoading"><div class="spinner"></div><p style="color: #E22227;">Отправляем...</p></div>
+                <div class="error" id="reportError"></div>
+                <div class="success" id="reportSuccess"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://your-backend.railway.app';
+        
+        function createStars() {
+            const c = document.getElementById('stars');
+            for (let i = 0; i < 100; i++) {
+                const s = document.createElement('div');
+                s.className = 'star';
+                s.style.left = Math.random() * 100 + '%';
+                s.style.top = Math.random() * 100 + '%';
+                s.style.animationDelay = Math.random() * 3 + 's';
+                c.appendChild(s);
+            }
+        }
+        createStars();
+
+        let tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        let selectedFiles = [];
+
+        function handleFiles(files) {
+            if (files.length > 5) { alert('Можно загрузить максимум 5 файлов'); return; }
+            selectedFiles = Array.from(files);
+            displayFilePreviews();
+        }
+
+        function displayFilePreviews() {
+            const p = document.getElementById('filePreview');
+            p.innerHTML = '';
+            selectedFiles.forEach((file, i) => {
+                const r = new FileReader();
+                r.onload = function(e) {
+                    const d = document.createElement('div');
+                    d.className = 'file-item';
+                    d.innerHTML = `<img src="${e.target.result}" alt="Screenshot ${i + 1}"><button class="file-remove" onclick="removeFile(${i})">×</button>`;
+                    p.appendChild(d);
+                };
+                r.readAsDataURL(file);
+            });
+        }
+
+        function removeFile(i) { selectedFiles.splice(i, 1); displayFilePreviews(); }
+        function showCheckScreen() { document.getElementById('checkScreen').classList.add('active'); document.getElementById('applyScreen').classList.remove('active'); document.getElementById('reportScreen').classList.remove('active'); clearMessages(); }
+        function showApplyScreen() { document.getElementById('checkScreen').classList.remove('active'); document.getElementById('applyScreen').classList.add('active'); document.getElementById('reportScreen').classList.remove('active'); clearMessages(); }
+        function showReportScreen() { document.getElementById('checkScreen').classList.remove('active'); document.getElementById('applyScreen').classList.remove('active'); document.getElementById('reportScreen').classList.add('active'); clearMessages(); }
+        function clearMessages() { document.querySelectorAll('.error, .success, .result, .loading').forEach(el => el.classList.remove('show')); document.getElementById('profileCard').style.display = 'none'; }
+
+        async function checkReputation() {
+            const username = document.getElementById('usernameCheck').value.trim();
+            const loading = document.getElementById('checkLoading');
+            const error = document.getElementById('checkError');
+            const result = document.getElementById('result');
+            const profileCard = document.getElementById('profileCard');
+            clearMessages();
+            if (!username) { error.textContent = 'Введите username'; error.classList.add('show'); return; }
+            loading.classList.add('show');
+            try {
+                const response = await fetch(`${API_URL}/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username }) });
+                loading.classList.remove('show');
+                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.detail || 'Ошибка запроса'); }
+                const data = await response.json();
+                if (data.status === 'scam') {
+                    result.className = 'result show scam';
+                    document.getElementById('resultTitle').textContent = '⚠️ ВНИМАНИЕ! МОШЕННИК';
+                    document.getElementById('resultUsername').textContent = `@${data.username}`;
+                    document.getElementById('resultDetails').textContent = `Причина: ${data.reason || 'Подтверждённый мошенник'}`;
+                } else if (data.status === 'trusted') {
+                    profileCard.style.display = 'block';
+                    profileCard.className = 'profile-card';
+                    profileCard.innerHTML = `<div class="profile-header"><img src="${data.profile_image || 'https://via.placeholder.com/80'}" alt="Profile" class="profile-image" onerror="this.src='https://via.placeholder.com/80?text=👤'"><div class="profile-info"><div class="profile-username">@${data.username}</div><div class="profile-badge">${data.profile_badge || '✅ Верифицирован'}</div></div></div><div class="profile-description">${data.profile_description || 'Этот пользователь прошёл проверку и является доверенным.'}</div><div class="profile-verified">✅ Проверенный пользователь</div>`;
+                } else {
+                    result.className = 'result show unknown';
+                    document.getElementById('resultTitle').textContent = '❓ НЕТ В БАЗЕ';
+                    document.getElementById('resultUsername').textContent = `@${data.username}`;
+                    document.getElementById('resultDetails').textContent = 'Пользователь не найден. Будьте осторожны при сделках.';
+                }
+                tg.HapticFeedback.notificationOccurred('success');
+            } catch (err) {
+                loading.classList.remove('show');
+                error.textContent = err.message || 'Ошибка проверки';
+                error.classList.add('show');
+                tg.HapticFeedback.notificationOccurred('error');
+            }
+        }
+
+        async function submitApplication() {
+            const username = document.getElementById('usernameApply').value.trim();
+            const description = document.getElementById('description').value.trim();
+            const proof = document.getElementById('proof').value.trim();
+            const loading = document.getElementById('applyLoading');
+            const error = document.getElementById('applyError');
+            const success = document.getElementById('applySuccess');
+            clearMessages();
+            if (!username) { error.textContent = 'Введите username'; error.classList.add('show'); return; }
+            if (!description || description.length < 10) { error.textContent = 'Описание должно быть минимум 10 символов'; error.classList.add('show'); return; }
+            loading.classList.add('show');
+            try {
+                const response = await fetch(`${API_URL}/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, description, proof }) });
+                loading.classList.remove('show');
+                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.detail || 'Ошибка запроса'); }
+                const data = await response.json();
+                success.textContent = '✅ Заявка успешно отправлена! Мы рассмотрим её в ближайшее время.';
+                success.classList.add('show');
+                document.getElementById('usernameApply').value = '';
+                document.getElementById('description').value = '';
+                document.getElementById('proof').value = '';
+                tg.HapticFeedback.notificationOccurred('success');
+            } catch (err) {
+                loading.classList.remove('show');
+                error.textContent = err.message || 'Ошибка отправки';
+                error.classList.add('show');
+                tg.HapticFeedback.notificationOccurred('error');
+            }
+        }
+
+        async function submitReport() {
+            const reporterUsername = document.getElementById('reporterUsername').value.trim();
+            const scammerUsername = document.getElementById('scammerUsername').value.trim();
+            const description = document.getElementById('reportDescription').value.trim();
+            const proofLinks = document.getElementById('reportProof').value.trim();
+            const loading = document.getElementById('reportLoading');
+            const error = document.getElementById('reportError');
+            const success = document.getElementById('reportSuccess');
+            clearMessages();
+            if (!scammerUsername) { error.textContent = 'Введите username мошенника'; error.classList.add('show'); return; }
+            if (!description || description.length < 20) { error.textContent = 'Описание должно быть минимум 20 символов'; error.classList.add('show'); return; }
+            loading.classList.add('show');
+            try {
+                const response = await fetch(`${API_URL}/report`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reporter_username: reporterUsername, scammer_username: scammerUsername, description: description, proof_links: proofLinks }) });
+                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.detail || 'Ошибка запроса'); }
+                const data = await response.json();
+                const reportId = data.report_id;
+                if (selectedFiles.length > 0) {
+                    for (let i = 0; i < selectedFiles.length; i++) {
+                        const formData = new FormData();
+                        formData.append('file', selectedFiles[i]);
+                        formData.append('report_id', reportId);
+                        formData.append('caption', `Скриншот ${i + 1}/${selectedFiles.length}`);
+                        await fetch(`${API_URL}/upload-screenshot`, { method: 'POST', body: formData });
+                    }
+                }
+                loading.classList.remove('show');
+                success.textContent = '✅ Жалоба успешно отправлена! Мы проверим информацию и примем меры.';
+                success.classList.add('show');
+                document.getElementById('reporterUsername').value = '';
+                document.getElementById('scammerUsername').value = '';
+                document.getElementById('reportDescription').value = '';
+                document.getElementById('reportProof').value = '';
+                selectedFiles = [];
+                document.getElementById('filePreview').innerHTML = '';
+                tg.HapticFeedback.notificationOccurred('success');
+            } catch (err) {
+                loading.classList.remove('show');
+                error.textContent = err.message || 'Ошибка отправки жалобы';
+                error.classList.add('show');
+                tg.HapticFeedback.notificationOccurred('error');
+            }
+        }
+
+        document.getElementById('usernameCheck').addEventListener('keypress', function(e) { if (e.key === 'Enter') checkReputation(); });
+    </script>
+</body>
+</html>
